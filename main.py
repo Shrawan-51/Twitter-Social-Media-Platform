@@ -34,37 +34,48 @@
 
 
 
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, Request, HTTPException, status, Depends #depends for dependency injections
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletHTTPException
 from schemas import PostCreate, PostResponse
+from schemas import UserResponse,UserCreate 
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+# from models import User, Post
+import models
+from database import get_db, engine, Base
 from datetime import datetime
+from typing import Annotated
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
+app.mount("/media",StaticFiles(directory="media"),name="media") #creates a media prefix for serving the files from that directory
 templates = Jinja2Templates(directory="templates")
 
-posts: list[dict] = [
-    {
-        "id": 1,
-        "author": "Corey Schafer",
-        "title": "FastAPI is Awesome",
-        "content": "This framework is really easy to use and super fast.",
-        "date_posted": "April 20, 2025",
-    },
-    {
-        "id": 2,
-        "author": "Jane Doe",
-        "title": "Python is Great for Web Development",
-        "content": "Python is a great language for web development, and FastAPI makes it even better.",
-        "date_posted": "April 21, 2025",
-    }
-]
+# posts: list[dict] = [
+#     {
+#         "id": 1,
+#         "author": "Corey Schafer",
+#         "title": "FastAPI is Awesome",
+#         "content": "This framework is really easy to use and super fast.",
+#         "date_posted": "April 20, 2025",
+#     },
+#     {
+#         "id": 2,
+#         "author": "Jane Doe",
+#         "title": "Python is Great for Web Development",
+#         "content": "Python is a great language for web development, and FastAPI makes it even better.",
+#         "date_posted": "April 21, 2025",
+#     }
+# ]
 
 
 @app.get("/", include_in_schema=False, name="home")
@@ -92,6 +103,41 @@ def get_post_idhtml(request:Request, post_id:int):
 @app.get("/api/posts",response_model=list[PostResponse])
 def get_posts():
     return posts
+
+@app.post("/api/users",response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def create_user(user: UserCreate,db: Annotated[Session,Depends(get_db)]):#dependancy injection here using depends
+    #it says before running this function call this get_db and pass the result as db parameter
+
+    #for username should not be same check
+    result=db.execute(select(models.User).where(models.User.username == user.username),)
+    existing_user=result.scalars().first()
+
+    if existing_user:
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User name Alredy exist",
+        )
+    
+    #for email unique check
+    result=db.execute(select(models.User).where(models.User.email == user.email),)
+    existing_email=result.scalars().first()
+
+    if existing_email:
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email Alredy exist",
+        )
+    new_user=models.User(
+        username=user.username,
+        email=user.email,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user #now when we return user the pidantic will auto convert it to a userresponse we write in api creation
+
+
 
 @app.post("/api/posts",response_model=PostResponse,status_code=status.HTTP_201_CREATED)
 def make_post(post: PostCreate):
