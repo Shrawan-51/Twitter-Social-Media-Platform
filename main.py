@@ -163,7 +163,7 @@ def get_user_posts(user_id: int, db: Annotated[Session,Depends(get_db)]):
             detail="User Not Found"
         )
     result=db.execute(select(models.Post).where(models.Post.user_id == user_id))
-    posts=result.scalar().all()
+    posts=result.scalars().all()
     return posts
 
 @app.get("/users/{user_id}/posts",include_in_schema=False, name="users_posts")
@@ -185,24 +185,31 @@ def user_posts_page(request: Request, user_id: int, db: Annotated[Session,Depend
 
 
 @app.post("/api/posts",response_model=PostResponse,status_code=status.HTTP_201_CREATED)
-def make_post(post: PostCreate, db: Annotated[Session,Depends(get_db)]):
-    id = max(p["id"] for p in posts) + 1 if posts else 1
-    new_post = {
-        "id":id,
-        "author":post.author,
-        "title":post.title,
-        "content":post.content,
-        "date_posted":"May 16 2026"
-    }
-    posts.append(new_post)
-    print("post updated")
+def create_post(post: PostCreate, db: Annotated[Session,Depends(get_db)]):
+    result=db.execute(select(models.User).where(models.User.id == post.user_id))
+    user=result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="user Not Found"
+        )
+    
+    new_post=models.Post(
+        title=post.title,
+        content=post.content,
+        user_id=post.user_id
+    )
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
     return new_post
 
 @app.get("/api/posts/{post_id}", response_model=PostResponse)
-def get_post_byid(post_id: int):
-    for post in posts:
-        if post.get("id") == post_id:
-            return post
+def get_post_byid(post_id: int,db: Annotated[Session, Depends(get_db)]):
+    result=db.execute(select(models.Post).where(models.Post.id == post_id))
+    post=result.scalars().first()
+    if post:
+       return post 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Id not found")
 
 
