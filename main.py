@@ -40,7 +40,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletHTTPException
-from schemas import PostCreate, PostResponse
+from schemas import PostCreate, PostResponse, PostUpdate
 from schemas import UserResponse,UserCreate 
 
 from sqlalchemy import select
@@ -142,6 +142,20 @@ def create_user(user: UserCreate,db: Annotated[Session,Depends(get_db)]):#depend
 
     return new_user #now when we return user the pidantic will auto convert it to a userresponse we write in api creation
 
+@app.delete("/users/{user_id}",status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int,db: Annotated[Session, Depends(get_db)]):
+    result=db.execute(select(models.User).where(models.User.id == user_id))
+    user=result.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NO_CONTENT,
+            detail="User Not Found"
+        )
+    db.delete(user)
+    db.commit()
+    return None
+
 @app.get("/api/user/{user_id}",response_model=UserResponse)
 def get_user(user_id: int,db: Annotated[Session,Depends(get_db)]):
     result=db.execute(select(models.User).where(models.User.id==user_id))
@@ -212,6 +226,42 @@ def get_post_byid(post_id: int,db: Annotated[Session, Depends(get_db)]):
        return post 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Id not found")
 
+@app.put("/api/posts/{post_id}", response_model=PostResponse)
+def update_post_full(post_id: int, post_data: PostCreate ,db: Annotated[Session, Depends(get_db)]):
+    result=db.execute(select(models.Post).where(models.Post.id == post_id))
+    post=result.scalars().first()
+    if not post: 
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Post not found")
+
+    if post_data.user_id != post.user_id:
+        result=db.execute(
+            select(models.User).where(models.User.id == post_data.user_id),
+        )
+        user=result.scalars().first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User Not Found")
+    
+    post.title=post_data.title
+    post.content=post_data.content
+    post.user_id=post_data.user_id
+    db.commit()
+    db.refresh(post)
+    return post
+
+@app.delete("/posts/{post_id}",status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(post_id: int, db: Annotated[Session, Depends(get_db)]):
+    result=db.execute(select(models.Post).where(models.Post.id == post_id))
+    post=result.scalars().first()
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post Not found"
+        )
+    db.delete(post)
+    db.commit()
+    return None
+    
+
 
 # Exception handler
 
@@ -256,3 +306,4 @@ def validation_exception_handler(request: Request, exception: RequestValidationE
         },
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     )
+
