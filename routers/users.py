@@ -134,7 +134,7 @@ async def get_user(user_id: int,db: Annotated[AsyncSession,Depends(get_db)]):
 async def get_user_posts(user_id: int, db: Annotated[AsyncSession,Depends(get_db)]):
     result= await db.execute(select(models.User).where(models.User.id == user_id)
                              .order_by(models.Post.date_posted.desc()),)
-    user=result.scalars().first
+    user=result.scalars().first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

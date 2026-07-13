@@ -98,7 +98,7 @@ async def user_posts_page(request: Request, user_id: int, db: Annotated[AsyncSes
             detail="User Not Found"
         )
     result=await db.execute(select(models.Post).options(selectinload(models.Post.author)).where(models.Post.user_id == user_id))
-    posts=result.scalar().all()
+    posts=result.scalars().all()
     return templates.TemplateResponse(
         request,
         "user_posts.html",
