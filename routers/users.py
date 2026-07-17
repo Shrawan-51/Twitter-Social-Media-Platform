@@ -136,15 +136,19 @@ async def get_user(user_id: int,db: Annotated[AsyncSession,Depends(get_db)]):
 
 @router.get("/{user_id}/posts",response_model=list[PostResponse])
 async def get_user_posts(user_id: int, db: Annotated[AsyncSession,Depends(get_db)]):
-    result= await db.execute(select(models.User).where(models.User.id == user_id)
-                             .order_by(models.Post.date_posted.desc()),)
+    result= await db.execute(select(models.User)
+                             .where(models.User.id == user_id)
+                             )
     user=result.scalars().first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User Not Found"
         )
-    result= await db.execute(select(models.Post).options(selectinload(models.Post.author)).where(models.Post.user_id == user_id))
+    result= await db.execute(select(models.Post)
+                             .options(selectinload(models.Post.author))
+                             .where(models.Post.user_id == user_id)
+                             .order_by(models.Post.date_posted.desc()))
     posts=result.scalars().all()
     return posts
 
@@ -180,8 +184,6 @@ async def update_user(user_id: int, user_update: UserUpdate,current_user: Curren
         user.email = user_update.email.lower()
     if user_update.username is not None:
         user.username = user_update.username
-    if user_update.image_file is not None:
-        user.image_file = user_update.image_file
 
     # update_data = user.model_dump(exclude_unset=True)
     # for field,val in update_data.items:
@@ -205,8 +207,12 @@ async def delete_user(user_id: int, current_user:CurrentUser, db: Annotated[Asyn
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User Not Found"
         )
+    old_filename = user.image_file
+    
     await db.delete(user)
     await db.commit()
+    if old_filename:
+        delete_profile_image(old_filename) 
     return None
 # @router.delete("api/users/{user_id}",status_code=status.HTTP_200_OK)
 # async def delete_user(user_id: int,db: Annotated[AsyncSession,Depends(get_db)]):

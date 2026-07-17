@@ -2,3 +2,4 @@ venv
 blog.db
 .env
 __pycache__
+media
