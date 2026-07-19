@@ -48,3 +48,9 @@ class PostResponse(PostBase):
     date_posted: datetime
     author: UserPublic #this gets the whole userresponse json containing user email image path and other properties
     
+class PaginatedPostResponse(BaseModel):
+    posts: list[PostResponse]
+    total: int
+    skip: int
+    limit: int
+    has_more: bool

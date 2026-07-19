@@ -1,13 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status,UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status,UploadFile,Query
 from sqlalchemy import select,func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import models
 from database import get_db
-from schemas import PostResponse, UserCreate, UserPublic, UserPrivate, UserUpdate, Token
+from schemas import PostResponse, UserCreate, UserPublic, UserPrivate, UserUpdate, Token, PaginatedPostResponse
 
 from datetime import timedelta
 from fastapi.security import OAuth2PasswordRequestForm
@@ -134,8 +134,11 @@ async def get_user(user_id: int,db: Annotated[AsyncSession,Depends(get_db)]):
         detail="User Not Found"
     )
 
-@router.get("/{user_id}/posts",response_model=list[PostResponse])
-async def get_user_posts(user_id: int, db: Annotated[AsyncSession,Depends(get_db)]):
+@router.get("/{user_id}/posts",response_model=PaginatedPostResponse)
+async def get_user_posts(user_id: int, 
+                         db: Annotated[AsyncSession,Depends(get_db)],
+                         skip: Annotated[int,Query(ge=0)]=0,
+                         limit: Annotated[int,Query(ge=1,le=100)]=10):
     result= await db.execute(select(models.User)
                              .where(models.User.id == user_id)
                              )
@@ -145,12 +148,26 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession,Depends(get_db
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User Not Found"
         )
+    
+    count_result = await db.execute(select(func.count()).select_from(models.Post).where(models.User.id == user_id))
+    total = count_result.scalar() or 0
+
     result= await db.execute(select(models.Post)
                              .options(selectinload(models.Post.author))
                              .where(models.Post.user_id == user_id)
-                             .order_by(models.Post.date_posted.desc()))
+                             .order_by(models.Post.date_posted.desc())
+                             .offset(skip)
+                            .limit(limit))
     posts=result.scalars().all()
-    return posts
+    has_more = skip+len(posts) < total
+
+    return PaginatedPostResponse(
+        posts=[PostResponse.model_validate(post) for post in posts],
+        skip=skip,
+        total=total,
+        limit=limit,
+        has_more=has_more,
+    )
 
 @router.patch("/{user_id}",response_model=UserPrivate)
 async def update_user(user_id: int, user_update: UserUpdate,current_user: CurrentUser, db: Annotated[AsyncSession,Depends(get_db)]):
@@ -226,7 +243,7 @@ async def delete_user(user_id: int, current_user:CurrentUser, db: Annotated[Asyn
 #     await db.commit()
 
 
-@router.patch("/{user_id}/profile",response_model=UserPrivate)
+@router.patch("/{user_id}/picture",response_model=UserPrivate)
 async def upload_profile_picture(
     user_id:int,
     file: UploadFile,
@@ -263,7 +280,7 @@ async def upload_profile_picture(
     
     return current_user
 
-router.delete("/{user_id}/profile",response_model=UserPrivate)
+router.delete("/{user_id}/picture",response_model=UserPrivate)
 async def delete_user_picture(
         user_id:int,
         current_user: CurrentUser,
