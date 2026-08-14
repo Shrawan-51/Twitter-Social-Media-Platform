@@ -40,6 +40,7 @@ class Post(Base):
         nullable=False,
         index=True
     )
+    likes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     date_posted: Mapped[datetime]=mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
