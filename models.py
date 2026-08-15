@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, Integer, ForeignKey, String, Text
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from database import Base
+from config import settings
 
 class User(Base):
     __tablename__="users"
@@ -24,7 +25,7 @@ class User(Base):
     @property
     def image_path(self):
         if self.image_file:
-            return f"/media/profile_pics/{self.image_file}"
+            return f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/profile_pics/{self.image_file}"
         return "static/profile_pics/default.jpg"
     
     

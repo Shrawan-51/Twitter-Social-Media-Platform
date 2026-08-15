@@ -5,3 +5,4 @@ __pycache__
 media
 populate_images
 populate_db.py
+check_s3.py
