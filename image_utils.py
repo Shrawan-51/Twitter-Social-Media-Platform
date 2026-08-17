@@ -9,6 +9,7 @@ from config import settings
 def _get_s3_client():
     return boto3.client(
         "s3",
+        endpoint_url="http://localhost:4566",
         region_name=settings.s3_region,
         aws_access_key_id=(
             settings.s3_access_key_id.get_secret_value()
@@ -20,7 +21,6 @@ def _get_s3_client():
             if settings.s3_secret_access_key
             else None
         ),
-        endpoint_url=settings.s3_endpoint_url,
     )
 
 
